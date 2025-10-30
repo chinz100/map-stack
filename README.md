@@ -40,12 +40,16 @@
 - `pnpm build` – สร้าง production build
 - `pnpm format` – จัดโค้ดด้วย Prettier
 - `pnpm map:gen` – สร้าง/รีเฟรช mock POIs (`apps/backend/src/data/thailand-cities.geojson`)
-- `pnpm map:gen-point` – สร้างพิกัดเมืองหลัก (summary) จากไฟล์ POI (`apps/backend/src/data/thailand-cities-point.geojson`)
+- `pnpm map:gen-point` – สร้างไฟล์สรุปเมือง/คลัสเตอร์ (`apps/backend/src/data/thailand-cities-point.geojson`)
+  - ใช้ `pnpm map:gen-point [options]` แล้วเพิ่มพารามิเตอร์ เช่น `--clusters-per-city`, `--spread-km`, `--seed` เพื่อควบคุมจำนวนคลัสเตอร์และการกระจาย
+  - ตัวอย่าง: `pnpm map:gen-point --clusters-per-city 12 --spread-km 45 --min-count 200 --max-count 1500 --seed 2026`
+  - แนะนำให้รันหลังจาก `pnpm map:gen` ทุกครั้งเพื่ออัปเดตจุดสรุปให้ตรงกับ POIs ล่าสุด
 
 ## Mock API ที่มีให้
 
-- `GET /api/geo/cities` – GeoJSON เมืองหลัก (ใช้เป็น summary สำหรับ zoom ใกล้)
+- `GET /api/geo/cities` – GeoJSON เมืองหลัก + seed สำหรับคลัสเตอร์
   - รองรับ `bbox=minLon,minLat,maxLon,maxLat`
+  - ใช้ `?kind=city|cluster|all` เพื่อเลือกข้อมูลเฉพาะ type (ดีฟอลต์ `city`)
 - `GET /api/geo/pois/clusters` – ข้อมูล aggregated สำหรับทำ cluster เมื่อ zoom กว้าง
   - รองรับ `bbox`, `zoom` (ดีฟอลต์ 8), `limit` (ดีฟอลต์ 500)
 

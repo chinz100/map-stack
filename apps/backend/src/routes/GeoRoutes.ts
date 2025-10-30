@@ -95,6 +95,17 @@ function gridSizeForZoom(zoom: number): number {
   return 4.0;
 }
 
+function parseKindParam(value: string | string[] | undefined): 'city' | 'cluster' | 'all' {
+  if (!value) {
+    return 'city';
+  }
+  const raw = Array.isArray(value) ? value[0] : value;
+  const normalized = raw.toLowerCase();
+  if (normalized === 'all' || normalized === 'mixed') return 'all';
+  if (['cluster', 'clusters', 'cluster_seed', 'seed'].includes(normalized)) return 'cluster';
+  return 'city';
+}
+
 export function getCitySummary(req: Request, res: Response): void {
   const bbox = parseBbox(req.query.bbox);
   if (req.query.bbox && !bbox) {
@@ -104,11 +115,22 @@ export function getCitySummary(req: Request, res: Response): void {
     return;
   }
 
-  const features = filterByBbox(cityCollection.features, bbox);
+  const kind = parseKindParam(req.query.kind);
+  const bboxFiltered = filterByBbox(cityCollection.features, bbox);
+  const features = bboxFiltered.filter((feature) => {
+    const featureKind = String(feature.properties?.kind ?? 'city').toLowerCase();
+    if (kind === 'all') return true;
+    if (kind === 'cluster') {
+      return featureKind !== 'city';
+    }
+    return featureKind === 'city';
+  });
   res.json({
     type: cityCollection.type,
     name: cityCollection.name ?? 'thailand_city_summary',
     count: features.length,
+    total_in_bbox: bboxFiltered.length,
+    kind,
     bbox: bbox ?? null,
     features,
   });
