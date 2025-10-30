@@ -2,9 +2,11 @@
   "name": "map-stack",
   "private": true,
   "scripts": {
-    "build": "turbo run build",
-    "dev": "turbo run dev",
-    "lint": "turbo run lint",
+    "build": "turbo run build --filter=backend --filter=web",
+    "dev": "turbo run dev --parallel --filter=web --filter=backend",
+    "dev:backend": "turbo run dev --filter=backend",
+    "dev:web": "turbo run dev --filter=web",
+    "lint": "turbo run lint --filter=backend --filter=web",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types"
   },

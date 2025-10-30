@@ -1,135 +1,58 @@
-# Turborepo starter
+# Map Stack Monorepo
 
-This Turborepo starter is maintained by the Turborepo core team.
+โครงงานนี้เตรียมสภาพแวดล้อมเพื่อทดสอบงาน “Thailand Ops Map” ด้วย Turborepo (pnpm) โดยแบ่งเป็น
 
-## Using this example
+- `apps/backend` – Express + TypeScript mock API
+- `apps/web` – Next.js frontend สำหรับโจทย์
 
-Run the following command:
+## ขั้นตอนเริ่มต้น
 
-```sh
-npx create-turbo@latest
-```
+1. Clone โปรเจ็กต์  
+   ```sh
+   git clone <repo-url> map-stack
+   cd map-stack
+   ```
+   (ถ้าต้องการล็อกเวอร์ชัน Node ตามที่ repo กำหนด)  
+   ```sh
+   nvm use
+   ```
+2. เตรียม environment  
+   ```sh
+   cp .env.simple .env
+   ```
+   ไฟล์ `.env` กำหนด `PORT=4000` (backend) และ `WEB_PORT=3000` (frontend) ปรับได้ตามต้องการ
+3. ติดตั้ง dependency  
+   ```sh
+   pnpm install
+   ```
+4. รันทั้ง backend + web พร้อมกัน  
+   ```sh
+   pnpm dev
+   ```
+   - Backend: http://localhost:${PORT:-4000}  
+   - Web: http://localhost:${WEB_PORT:-3000}
 
-## What's inside?
+## คำสั่งหลัก
 
-This Turborepo includes the following packages/apps:
+- `pnpm dev:backend` – รันเฉพาะ mock API (Express)
+- `pnpm dev:web` – รันเฉพาะ Next.js frontend
+- `pnpm lint` – ตรวจ lint ทั้งสองแอป
+- `pnpm build` – สร้าง production build
+- `pnpm format` – จัดโค้ดด้วย Prettier
 
-### Apps and Packages
+## โครงสร้างโฟลเดอร์
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+- `apps/backend` – endpoint เช่น `/provinces`, `/districts`, `/pois`, `/pois-tile`
+- `apps/web` – UI React/Next.js สำหรับแผนที่
+- `packages/*` – พื้นที่สำหรับ shared libraries (ถ้ามีในอนาคต)
+- `turbo.json` – pipeline ที่กำหนดให้ run/build/lint เฉพาะ backend + web
+- `pnpm-workspace.yaml` – ประกาศ workspace ทั้งหมด
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
+## เครื่องมือที่ใช้
 
-### Utilities
+- Turborepo 2.x – จัดการ task/caching ใน monorepo
+- pnpm 9 – จัดการ dependency/workspace
+- TypeScript 5.9 – ใช้ type safety
+- Prettier 3.6 – formatter มาตรฐานทีม
 
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build
-yarn dlx turbo build
-pnpm exec turbo build
-```
-
-You can build a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
-
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build --filter=docs
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build --filter=docs
-yarn exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-```
-
-### Develop
-
-To develop all apps and packages, run the following command:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev
-yarn exec turbo dev
-pnpm exec turbo dev
-```
-
-You can develop a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
-
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev --filter=web
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev --filter=web
-yarn exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-```
-
-### Remote Caching
-
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo login
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo login
-yarn exec turbo login
-pnpm exec turbo login
-```
-
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo link
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo link
-yarn exec turbo link
-pnpm exec turbo link
-```
-
-## Useful Links
-
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turborepo.com/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.com/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.com/docs/reference/configuration)
-- [CLI Usage](https://turborepo.com/docs/reference/command-line-reference)
+พร้อมสำหรับการพัฒนา/ทดสอบโจทย์ frontend และ mock backend ตามสเปคแล้วครับ.
