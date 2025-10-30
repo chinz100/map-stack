@@ -28,6 +28,8 @@ interface CliOptions {
   minCount: number;
   maxCount: number;
   seed: string;
+  insertCity?: string;
+  clusterInput?: string;
 }
 
 interface CityStats {
@@ -112,13 +114,25 @@ function parseArgs(): CliOptions {
         opts.seed = args[i + 1] ?? 'map-stack';
         i += 1;
         break;
+      case '--insert-city':
+      case '--insert-city-path':
+      case '--city-insert':
+        opts.insertCity = args[i + 1];
+        i += 1;
+        break;
+      case '--cluster-input':
+      case '--cluster-in':
+      case '--clusters-input':
+        opts.clusterInput = args[i + 1];
+        i += 1;
+        break;
       default:
         break;
     }
   }
 
   if (!opts.in || !opts.out) {
-    console.error('Usage: pnpm exec tsx scripts/generate-th-city-points.ts --in <poi.geojson> --out <city-points.geojson> [--clusters-per-city 8] [--spread-km 35] [--min-count 120] [--max-count 900] [--seed string]');
+    console.error('Usage: pnpm exec tsx scripts/generate-th-city-points.ts --in <poi.geojson> --out <city-points.geojson> [--clusters-per-city 8] [--spread-km 35] [--min-count 120] [--max-count 900] [--seed string] [--insert-city <city.geojson>] [--cluster-input <cluster.geojson>]');
     process.exit(1);
   }
 
@@ -130,6 +144,8 @@ function parseArgs(): CliOptions {
     minCount: opts.minCount ?? 120,
     maxCount: opts.maxCount ?? 900,
     seed: opts.seed ?? 'map-stack',
+    insertCity: opts.insertCity,
+    clusterInput: opts.clusterInput,
   };
 }
 
@@ -191,6 +207,152 @@ function selectTopCategories(categoryCounts: Record<string, number>, limit = 3) 
     .sort((a, b) => b[1] - a[1])
     .slice(0, limit)
     .map(([name, count]) => ({ name, count }));
+}
+
+function extractFeatureId(feature: Feature, fallback: string): string {
+  const props = feature.properties ?? {};
+  const candidates: unknown[] = [
+    props.id,
+    props.city_id,
+    props.cityId,
+    props.cityID,
+    props.slug,
+    props.code,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim();
+    }
+    if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+      return String(candidate);
+    }
+  }
+  return fallback;
+}
+
+function coercePointCoordinates(value: unknown): LonLat | null {
+  if (!Array.isArray(value) || value.length < 2) {
+    return null;
+  }
+
+  const lon = Number(value[0]);
+  const lat = Number(value[1]);
+
+  if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+    return null;
+  }
+
+  return [Number(lon.toFixed(6)), Number(lat.toFixed(6))];
+}
+
+function detectFeatureKind(feature: Feature): 'city' | 'cluster' | null {
+  const props = feature.properties ?? {};
+  const rawKind = typeof props.kind === 'string' ? props.kind.toLowerCase() : '';
+
+  if (rawKind.includes('city')) {
+    return 'city';
+  }
+  if (rawKind.includes('cluster') || rawKind.includes('seed')) {
+    return 'cluster';
+  }
+  if (
+    'poi_total' in props
+    || 'poi_count' in props
+    || 'population' in props
+    || 'name_th' in props
+    || 'name_en' in props
+  ) {
+    return 'city';
+  }
+  if ('approx_count' in props || 'coverage_km' in props || 'min_zoom' in props || 'level' in props) {
+    return 'cluster';
+  }
+  return null;
+}
+
+function addFeaturesToMap(
+  map: Map<string, Feature>,
+  features: Feature[],
+  target: 'city' | 'cluster',
+  prefix: string,
+) {
+  features.forEach((feature, index) => {
+    if (!feature || feature.type !== 'Feature') {
+      return;
+    }
+    if (!feature.geometry || feature.geometry.type !== 'Point') {
+      return;
+    }
+
+    const coords = coercePointCoordinates(feature.geometry.coordinates);
+    if (!coords) {
+      console.warn(
+        `[WARN] Skipping ${target} feature ${index} from ${prefix}: invalid coordinates.`,
+      );
+      return;
+    }
+
+    const detected = detectFeatureKind(feature);
+    if (detected && detected !== target) {
+      return;
+    }
+
+    if (!detected && prefix !== 'generated') {
+      return;
+    }
+
+    const id = extractFeatureId(feature, `${prefix}_${index}`);
+    const props = feature.properties ?? {};
+    const kind =
+      target === 'city'
+        ? 'city'
+        : typeof props.kind === 'string' && props.kind.trim()
+          ? String(props.kind)
+          : 'cluster_seed';
+
+    map.set(id, {
+      type: 'Feature',
+      properties: {
+        ...props,
+        id,
+        kind,
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: coords,
+      },
+    });
+  });
+}
+
+function loadOptionalFeatureCollection(
+  filePath: string | undefined,
+  label: string,
+): FeatureCollection | null {
+  if (!filePath) {
+    return null;
+  }
+
+  const resolved = path.resolve(filePath);
+  if (!fs.existsSync(resolved)) {
+    console.warn(`[WARN] ${label} file not found: ${resolved}`);
+    return null;
+  }
+
+  try {
+    const raw = fs.readFileSync(resolved, 'utf-8');
+    const parsed = JSON.parse(raw) as FeatureCollection;
+    if (!Array.isArray(parsed.features)) {
+      console.warn(`[WARN] ${label} file is missing a "features" array: ${resolved}`);
+      return null;
+    }
+    return parsed;
+  } catch (error) {
+    console.warn(
+      `[WARN] Failed to load ${label} file (${resolved}): ${(error as Error).message}`,
+    );
+    return null;
+  }
 }
 
 function toCityId(props: Record<string, unknown>, fallbackIndex: number): string {
@@ -363,7 +525,7 @@ function buildClusterFeatures(
     }
 
     const minZoom = Math.min(12, Math.max(4, Math.round(10 - Math.log2(approxCount))));
-    const maxZoom = Math.min(16, minZoom + 4);
+    const maxZoomLevel = Math.min(16, minZoom + 4);
 
     features.push({
       type: 'Feature',
@@ -379,7 +541,7 @@ function buildClusterFeatures(
         coverage_km: Number(radiusKm.toFixed(1)),
         bbox,
         min_zoom: minZoom,
-        max_zoom,
+        max_zoom: maxZoomLevel,
       },
       geometry: {
         type: 'Point',
@@ -395,6 +557,8 @@ function main() {
   const options = parseArgs();
   const sourcePath = path.resolve(options.in);
   const targetPath = path.resolve(options.out);
+  const insertCityCollection = loadOptionalFeatureCollection(options.insertCity, 'insert-city');
+  const clusterInputCollection = loadOptionalFeatureCollection(options.clusterInput, 'cluster-input');
 
   if (!fs.existsSync(sourcePath)) {
     console.error(`Input file not found: ${sourcePath}`);
@@ -412,18 +576,38 @@ function main() {
   collection.features.forEach((feature, index) => accumulateStats(feature, index, statsMap));
 
   const rand = createSeededRandom(options.seed);
-  const cityFeatures: Feature[] = [];
-  const clusterFeatures: Feature[] = [];
+  const generatedCityFeatures: Feature[] = [];
+  const generatedClusterFeatures: Feature[] = [];
 
   for (const stats of statsMap.values()) {
-    cityFeatures.push(buildCityFeature(stats));
-    clusterFeatures.push(...buildClusterFeatures(stats, options, rand));
+    generatedCityFeatures.push(buildCityFeature(stats));
+    generatedClusterFeatures.push(...buildClusterFeatures(stats, options, rand));
   }
+
+  const cityMap = new Map<string, Feature>();
+  addFeaturesToMap(cityMap, generatedCityFeatures, 'city', 'generated');
+  if (insertCityCollection) {
+    addFeaturesToMap(cityMap, insertCityCollection.features, 'city', 'insert-city');
+  }
+  if (clusterInputCollection) {
+    addFeaturesToMap(cityMap, clusterInputCollection.features, 'city', 'cluster-input');
+  }
+  const mergedCityFeatures = Array.from(cityMap.values());
+
+  const clusterMap = new Map<string, Feature>();
+  addFeaturesToMap(clusterMap, generatedClusterFeatures, 'cluster', 'generated');
+  if (insertCityCollection) {
+    addFeaturesToMap(clusterMap, insertCityCollection.features, 'cluster', 'insert-city');
+  }
+  if (clusterInputCollection) {
+    addFeaturesToMap(clusterMap, clusterInputCollection.features, 'cluster', 'cluster-input');
+  }
+  const mergedClusterFeatures = Array.from(clusterMap.values());
 
   const pointCollection: FeatureCollection = {
     type: 'FeatureCollection',
     name: 'thailand_city_points',
-    features: [...cityFeatures, ...clusterFeatures],
+    features: [...mergedCityFeatures, ...mergedClusterFeatures],
   };
 
   const dir = path.dirname(targetPath);
@@ -431,7 +615,7 @@ function main() {
   fs.writeFileSync(targetPath, JSON.stringify(pointCollection));
 
   console.log(
-    `Generated ${cityFeatures.length} city summaries + ${clusterFeatures.length} cluster seeds -> ${targetPath}`,
+    `Generated ${generatedCityFeatures.length} city summaries + ${generatedClusterFeatures.length} cluster seeds (final: ${mergedCityFeatures.length} cities, ${mergedClusterFeatures.length} clusters) -> ${targetPath}`,
   );
 }
 

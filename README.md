@@ -44,6 +44,7 @@
   - ใช้ `pnpm map:gen-point [options]` แล้วเพิ่มพารามิเตอร์ เช่น `--clusters-per-city`, `--spread-km`, `--seed` เพื่อควบคุมจำนวนคลัสเตอร์และการกระจาย
   - ตัวอย่าง: `pnpm map:gen-point --clusters-per-city 12 --spread-km 45 --min-count 200 --max-count 1500 --seed 2026`
   - แนะนำให้รันหลังจาก `pnpm map:gen` ทุกครั้งเพื่ออัปเดตจุดสรุปให้ตรงกับ POIs ล่าสุด
+- `pnpm map:gel-all` – รันทั้ง `map:gen` และ `map:gen-point` ต่อเนื่องกันในคำสั่งเดียว
 
 ## Mock API ที่มีให้
 
