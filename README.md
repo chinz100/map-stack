@@ -40,6 +40,11 @@
 - `pnpm build` – สร้าง production build
 - `pnpm format` – จัดโค้ดด้วย Prettier
 
+## Mock API ที่มีให้
+
+- `GET /api/geo/cities` – คืนค่า GeoJSON เมืองสำคัญในประเทศไทย
+  - รองรับ query `bbox=minLon,minLat,maxLon,maxLat` สำหรับกรองตามกรอบพิกัด (ออปชั่น)
+
 ## โครงสร้างโฟลเดอร์
 
 - `apps/backend` – endpoint เช่น `/provinces`, `/districts`, `/pois`, `/pois-tile`

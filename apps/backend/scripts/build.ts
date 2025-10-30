@@ -16,6 +16,7 @@ import childProcess from 'child_process';
     await copy('./src/public', './dist/public');
     await copy('./src/views', './dist/views');
     await copy('./src/repos/database.json', './dist/repos/database.json');
+    await copy('./src/data', './dist/data');
     await copy('./temp/config.js', './config.js');
     await copy('./temp/src', './dist');
     await remove('./temp/');

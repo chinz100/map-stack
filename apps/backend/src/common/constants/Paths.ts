@@ -8,4 +8,8 @@ export default {
     Update: '/update',
     Delete: '/delete/:id',
   },
+  Geo: {
+    Base: '/geo',
+    Cities: '/cities',
+  },
 } as const;
