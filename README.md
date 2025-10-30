@@ -39,11 +39,15 @@
 - `pnpm lint` – ตรวจ lint ทั้งสองแอป
 - `pnpm build` – สร้าง production build
 - `pnpm format` – จัดโค้ดด้วย Prettier
+- `pnpm map:gen` – สร้าง/รีเฟรช mock POIs (`apps/backend/src/data/thailand-cities.geojson`)
+- `pnpm map:gen-point` – สร้างพิกัดเมืองหลัก (summary) จากไฟล์ POI (`apps/backend/src/data/thailand-cities-point.geojson`)
 
 ## Mock API ที่มีให้
 
-- `GET /api/geo/cities` – คืนค่า GeoJSON เมืองสำคัญในประเทศไทย
-  - รองรับ query `bbox=minLon,minLat,maxLon,maxLat` สำหรับกรองตามกรอบพิกัด (ออปชั่น)
+- `GET /api/geo/cities` – GeoJSON เมืองหลัก (ใช้เป็น summary สำหรับ zoom ใกล้)
+  - รองรับ `bbox=minLon,minLat,maxLon,maxLat`
+- `GET /api/geo/pois/clusters` – ข้อมูล aggregated สำหรับทำ cluster เมื่อ zoom กว้าง
+  - รองรับ `bbox`, `zoom` (ดีฟอลต์ 8), `limit` (ดีฟอลต์ 500)
 
 ## โครงสร้างโฟลเดอร์
 

@@ -25,8 +25,8 @@ function parseArgs(): Args {
   };
   const fmt = (get("format", "json") as "json" | "jsonl");
   return {
-    in: get("in", "apps/backend/src/data/thailand-cities.geojson")!,
-    out: get("out", "apps/backend/src/data/thailand-pois.geojson")!,
+    in: get("in", "apps/backend/src/data/thailand-cities-min.geojson")!,
+    out: get("out", "apps/backend/src/data/thailand-cities.geojson")!,
     count: Number(get("count", "100000")),
     format: fmt,
     radiusKm: Number(get("radius-km", "35")),

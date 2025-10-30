@@ -11,5 +11,7 @@ export default {
   Geo: {
     Base: '/geo',
     Cities: '/cities',
+    Pois: '/pois',
+    PoiClusters: '/pois/clusters',
   },
 } as const;
