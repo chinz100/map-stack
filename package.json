@@ -8,10 +8,10 @@
     "dev": "turbo run dev --parallel --filter=web --filter=backend",
     "lint": "turbo run lint --filter=backend --filter=web",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "map:gen:geojsonl": "pnpm exec tsx scripts/generate-th-pois.ts --in apps/backend/src/data/thailand-cities-min.geojson --out apps/backend/src/data/thailand-cities.geojsonl --count 5000 --format jsonl --radius-km 35 --seed 2025",
+    "map:gen:geojsonl": "pnpm exec tsx scripts/generate-th-pois.ts --in apps/backend/src/data/thailand-cities-min.geojson --out apps/backend/src/data/thailand-cities.geojsonl --count 800000 --format jsonl --radius-km 35 --seed 2025",
     "map:gen": "pnpm exec tsx scripts/generate-th-pois.ts --in apps/backend/src/data/thailand-cities-min.geojson --out apps/backend/src/data/thailand-cities.geojson  --count 800000 --format json --radius-km 35 --seed 2025",
     "map:gen-point": "pnpm exec tsx scripts/generate-th-city-points.ts --in apps/backend/src/data/thailand-cities.geojson --out apps/backend/src/data/thailand-cities-point.geojson --insert-city apps/backend/src/data/thailand-cities-min.geojson --cluster-input apps/backend/src/data/thailand-cities-point.geojson",
-    "map:gen-all": "pnpm run map:gen && pnpm run map:gen-point",
+    "map:gen-all": "pnpm run map:gen && pnpm run map:gen-point && pnpm run map:gen:geojsonl",
     "check-types": "turbo run check-types"
   },
   "devDependencies": {

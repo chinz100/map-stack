@@ -1,39 +1,62 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { NextFunction, Request, Response } from 'express';
+import fs from "node:fs";
+import path from "node:path";
+import { NextFunction, Request, Response } from "express";
 
 import {
   GEO_DATA_DIR,
   PoiDataset,
   PoiDatasetInfo,
   getPoiDataset,
-} from '@src/services/PoiDatasetService';
+} from "@src/services/PoiDatasetService";
 import {
   PoiTileCachePayload,
   getPoiTileCachePath,
   readPoiTileFromCache,
   writePoiTileToCache,
-} from '@src/services/PoiTileCache';
-import { GeoCollection, GeoFeature, LonLat } from '@src/types/geo';
+} from "@src/services/PoiTileCache";
+import {
+  CityTileCachePayload,
+  getCityTileCachePath,
+  readCityTileFromCache,
+  writeCityTileToCache,
+} from "@src/services/CityTileCache";
+import { GeoCollection, GeoFeature, LonLat } from "@src/types/geo";
 
-const cityDataPath = path.join(GEO_DATA_DIR, 'thailand-cities-point.geojson');
-const cityCollection = loadGeoCollection(cityDataPath, 'thailand_city_summary');
+const cityPointDataPath = path.join(
+  GEO_DATA_DIR,
+  "thailand-cities-point.geojson"
+);
+const cityCollection = loadGeoCollection(cityPointDataPath, "thailand_cities");
+
+const cityTileDataPath = path.join(GEO_DATA_DIR, "thailand-cities.geojson");
+const cityTileCollection = loadGeoCollection(
+  cityTileDataPath,
+  "thailand_cities"
+);
+const cityTileDatasetInfo = createDatasetInfo(
+  cityTileDataPath,
+  cityTileCollection
+);
 
 const poiDataset: PoiDataset | null = getPoiDataset();
+
 const poiCollection: GeoCollection = poiDataset?.collection ?? cityCollection;
-const poiDatasetInfo: PoiDatasetInfo =
-  poiDataset?.info ?? createDatasetInfo(cityDataPath, poiCollection);
+const poiTileCollection: GeoCollection = cityCollection;
+const poiTileDatasetInfo: PoiDatasetInfo = createDatasetInfo(
+  cityPointDataPath,
+  poiTileCollection
+);
 
 function parseBbox(
-  bboxRaw: string | string[] | undefined,
+  bboxRaw: string | string[] | undefined
 ): [number, number, number, number] | null {
   if (!bboxRaw) {
     return null;
   }
 
-  const value = Array.isArray(bboxRaw) ? bboxRaw.join(',') : bboxRaw;
+  const value = Array.isArray(bboxRaw) ? bboxRaw.join(",") : bboxRaw;
   const parts = value
-    .split(',')
+    .split(",")
     .map((part) => Number(part.trim()))
     .filter((part) => !Number.isNaN(part));
 
@@ -51,7 +74,7 @@ function parseBbox(
 
 function filterByBbox(
   features: GeoFeature[],
-  bbox: ReturnType<typeof parseBbox>,
+  bbox: ReturnType<typeof parseBbox>
 ): GeoFeature[] {
   if (!bbox) {
     return features;
@@ -63,7 +86,10 @@ function filterByBbox(
   });
 }
 
-function parseLimit(value: string | string[] | undefined, defaultValue: number) {
+function parseLimit(
+  value: string | string[] | undefined,
+  defaultValue: number
+) {
   const num = Number(Array.isArray(value) ? value[0] : value);
   if (Number.isFinite(num)) {
     return Math.max(1, Math.min(5000, Math.floor(num)));
@@ -90,22 +116,26 @@ function gridSizeForZoom(zoom: number): number {
   return 4.0;
 }
 
-function parseKindParam(value: string | string[] | undefined): 'city' | 'cluster' | 'all' {
+function parseKindParam(
+  value: string | string[] | undefined
+): "city" | "cluster" | "all" {
   if (!value) {
-    return 'city';
+    return "city";
   }
   const raw = Array.isArray(value) ? value[0] : value;
   const normalized = raw.toLowerCase();
-  if (normalized === 'all' || normalized === 'mixed') return 'all';
-  if (['cluster', 'clusters', 'cluster_seed', 'seed'].includes(normalized)) return 'cluster';
-  return 'city';
+  if (normalized === "all" || normalized === "mixed") return "all";
+  if (["cluster", "clusters", "cluster_seed", "seed"].includes(normalized))
+    return "cluster";
+  return "city";
 }
 
 export function getCitySummary(req: Request, res: Response): void {
   const bbox = parseBbox(req.query.bbox);
   if (req.query.bbox && !bbox) {
     res.status(400).json({
-      error: 'Invalid bbox parameter. Expected format: minLon,minLat,maxLon,maxLat',
+      error:
+        "Invalid bbox parameter. Expected format: minLon,minLat,maxLon,maxLat",
     });
     return;
   }
@@ -113,16 +143,18 @@ export function getCitySummary(req: Request, res: Response): void {
   const kind = parseKindParam(req.query.kind);
   const bboxFiltered = filterByBbox(cityCollection.features, bbox);
   const features = bboxFiltered.filter((feature) => {
-    const featureKind = String(feature.properties?.kind ?? 'city').toLowerCase();
-    if (kind === 'all') return true;
-    if (kind === 'cluster') {
-      return featureKind !== 'city';
+    const featureKind = String(
+      feature.properties?.kind ?? "city"
+    ).toLowerCase();
+    if (kind === "all") return true;
+    if (kind === "cluster") {
+      return featureKind !== "city";
     }
-    return featureKind === 'city';
+    return featureKind === "city";
   });
   res.json({
     type: cityCollection.type,
-    name: cityCollection.name ?? 'thailand_city_summary',
+    name: cityCollection.name ?? "thailand_cities",
     count: features.length,
     total_in_bbox: bboxFiltered.length,
     kind,
@@ -135,7 +167,8 @@ export function getPois(req: Request, res: Response): void {
   const bbox = parseBbox(req.query.bbox);
   if (req.query.bbox && !bbox) {
     res.status(400).json({
-      error: 'Invalid bbox parameter. Expected format: minLon,minLat,maxLon,maxLat',
+      error:
+        "Invalid bbox parameter. Expected format: minLon,minLat,maxLon,maxLat",
     });
     return;
   }
@@ -146,7 +179,7 @@ export function getPois(req: Request, res: Response): void {
 
   res.json({
     type: poiCollection.type,
-    name: poiCollection.name ?? 'thailand_pois',
+    name: poiCollection.name ?? "thailand_pois",
     count: filtered.length,
     returned: features.length,
     bbox: bbox ?? null,
@@ -158,7 +191,8 @@ export function getPoiClusters(req: Request, res: Response): void {
   const bbox = parseBbox(req.query.bbox);
   if (req.query.bbox && !bbox) {
     res.status(400).json({
-      error: 'Invalid bbox parameter. Expected format: minLon,minLat,maxLon,maxLat',
+      error:
+        "Invalid bbox parameter. Expected format: minLon,minLat,maxLon,maxLat",
     });
     return;
   }
@@ -169,7 +203,7 @@ export function getPoiClusters(req: Request, res: Response): void {
 
   const features = filterByBbox(poiCollection.features, bbox);
 
-  type Cluster = {
+  interface Cluster {
     id: string;
     count: number;
     sumLon: number;
@@ -179,7 +213,7 @@ export function getPoiClusters(req: Request, res: Response): void {
     maxLon: number;
     maxLat: number;
     categories: Record<string, number>;
-  };
+  }
 
   const clusters = new Map<string, Cluster>();
 
@@ -209,7 +243,7 @@ export function getPoiClusters(req: Request, res: Response): void {
     cluster.maxLon = Math.max(cluster.maxLon, lon);
     cluster.maxLat = Math.max(cluster.maxLat, lat);
 
-    const category = String(feature.properties.category ?? 'unknown');
+    const category = String(feature.properties.category ?? "unknown");
     cluster.categories[category] = (cluster.categories[category] ?? 0) + 1;
 
     clusters.set(key, cluster);
@@ -225,18 +259,23 @@ export function getPoiClusters(req: Request, res: Response): void {
         .map(([name, count]) => ({ name, count }));
 
       return {
-        type: 'Feature',
+        type: "Feature",
         properties: {
           id: `cluster_${idx}`,
           cluster_key: cluster.id,
           count: cluster.count,
           top_categories: topCategories,
-          bbox: [cluster.minLon, cluster.minLat, cluster.maxLon, cluster.maxLat],
+          bbox: [
+            cluster.minLon,
+            cluster.minLat,
+            cluster.maxLon,
+            cluster.maxLat,
+          ],
           zoom,
           cellSizeDeg: cellSize,
         },
         geometry: {
-          type: 'Point',
+          type: "Point",
           coordinates: [
             cluster.sumLon / cluster.count,
             cluster.sumLat / cluster.count,
@@ -246,8 +285,8 @@ export function getPoiClusters(req: Request, res: Response): void {
     });
 
   res.json({
-    type: 'FeatureCollection',
-    name: 'thailand_poi_clusters',
+    type: "FeatureCollection",
+    name: "thailand_poi_clusters",
     bbox: bbox ?? null,
     zoom,
     count: clusterFeatures.length,
@@ -257,78 +296,195 @@ export function getPoiClusters(req: Request, res: Response): void {
   });
 }
 
-export function getPoiTile(req: Request, res: Response, next: NextFunction): void {
+export function getCityTile(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
   const z = Number(req.params.z);
   const x = Number(req.params.x);
   const y = Number(req.params.y);
+  const tileKey = { z, x, y };
+  ensureRequestCancellationTracking(req);
 
   if (![z, x, y].every(Number.isInteger)) {
-    res.status(400).json({ error: 'Tile coordinates must be integers' });
+    res.status(400).json({ error: "Tile coordinates must be integers" });
     return;
   }
 
   if (z < 0 || z > 22) {
-    res.status(400).json({ error: 'Tile zoom must be between 0 and 22' });
+    res.status(400).json({ error: "Tile zoom must be between 0 and 22" });
     return;
   }
 
   const tileExtent = Math.pow(2, z);
   if (x < 0 || x >= tileExtent || y < 0 || y >= tileExtent) {
-    res.status(400).json({ error: 'Tile coordinates are out of range for the given zoom' });
+    res
+      .status(400)
+      .json({ error: "Tile coordinates are out of range for the given zoom" });
+    return;
+  }
+
+  const bbox = tileToBbox(z, x, y);
+  const cachePath = getCityTileCachePath(z, x, y);
+  const cacheKey = `${z}/${x}/${y}`;
+  const datasetInfo = cityTileDatasetInfo;
+  const eTag = buildTileEtag("city", tileKey, datasetInfo);
+
+  if (tryRespondNotModified(req, res, eTag)) {
+    return;
+  }
+
+  if (tryRespondCancelled(req, res)) {
+    return;
+  }
+
+  const payloadPromise = cityTileJobs.run(cacheKey, async () => {
+    const cached = await readCityTileFromCache(cachePath, datasetInfo);
+    if (cached) {
+      return cached;
+    }
+
+    const features = filterByBbox(cityTileCollection.features, bbox);
+    const payload: CityTileCachePayload = {
+      type: "FeatureCollection",
+      tile: { z, x, y },
+      bbox,
+      count: features.length,
+      dataset: {
+        relativePath: datasetInfo.relativePath,
+        type: datasetInfo.type,
+        lastModified: datasetInfo.lastModified,
+        totalFeatures: datasetInfo.featureCount,
+      },
+      cache: {
+        key: cacheKey,
+        generatedAt: new Date().toISOString(),
+        hit: false,
+      },
+      features,
+    };
+
+    await writeCityTileToCache(cachePath, payload);
+    return payload;
+  });
+
+  void payloadPromise
+    .then((payload) => {
+      if (tryRespondCancelled(req, res) || !isResponseWritable(res)) {
+        return;
+      }
+
+      applyTileCacheHeaders(res, eTag);
+      res.json(payload);
+    })
+    .catch((error) => {
+      next(error as Error);
+    });
+}
+
+export function getPoiTile(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  const z = Number(req.params.z);
+  const x = Number(req.params.x);
+  const y = Number(req.params.y);
+  const tileKey = { z, x, y };
+  ensureRequestCancellationTracking(req);
+
+  if (![z, x, y].every(Number.isInteger)) {
+    res.status(400).json({ error: "Tile coordinates must be integers" });
+    return;
+  }
+
+  if (z < 0 || z > 22) {
+    res.status(400).json({ error: "Tile zoom must be between 0 and 22" });
+    return;
+  }
+
+  const tileExtent = Math.pow(2, z);
+  if (x < 0 || x >= tileExtent || y < 0 || y >= tileExtent) {
+    res
+      .status(400)
+      .json({ error: "Tile coordinates are out of range for the given zoom" });
     return;
   }
 
   const bbox = tileToBbox(z, x, y);
   const cachePath = getPoiTileCachePath(z, x, y);
   const cacheKey = `${z}/${x}/${y}`;
+  const eTag = buildTileEtag("poi", tileKey, poiTileDatasetInfo);
 
-  void (async () => {
-    try {
-      let payload: PoiTileCachePayload | null = await readPoiTileFromCache(cachePath, poiDatasetInfo);
+  if (tryRespondNotModified(req, res, eTag)) {
+    return;
+  }
 
-      if (!payload) {
-        const features = filterByBbox(poiCollection.features, bbox);
-        payload = {
-          type: 'FeatureCollection',
-          tile: { z, x, y },
-          bbox,
-          count: features.length,
-          dataset: {
-            relativePath: poiDatasetInfo.relativePath,
-            type: poiDatasetInfo.type,
-            lastModified: poiDatasetInfo.lastModified,
-            totalFeatures: poiDatasetInfo.featureCount,
-          },
-          cache: {
-            key: cacheKey,
-            generatedAt: new Date().toISOString(),
-            hit: false,
-          },
-          features,
-        };
+  if (tryRespondCancelled(req, res)) {
+    return;
+  }
 
-        await writePoiTileToCache(cachePath, payload);
+  const payloadPromise = poiTileJobs.run(cacheKey, async () => {
+    const cached = await readPoiTileFromCache(cachePath, poiTileDatasetInfo);
+    if (cached) {
+      return cached;
+    }
+
+    const features = filterByBbox(poiTileCollection.features, bbox);
+    const payload: PoiTileCachePayload = {
+      type: "FeatureCollection",
+      tile: { z, x, y },
+      bbox,
+      count: features.length,
+      dataset: {
+        relativePath: poiTileDatasetInfo.relativePath,
+        type: poiTileDatasetInfo.type,
+        lastModified: poiTileDatasetInfo.lastModified,
+        totalFeatures: poiTileDatasetInfo.featureCount,
+      },
+      cache: {
+        key: cacheKey,
+        generatedAt: new Date().toISOString(),
+        hit: false,
+      },
+      features,
+    };
+
+    await writePoiTileToCache(cachePath, payload);
+    return payload;
+  });
+
+  void payloadPromise
+    .then((payload) => {
+      if (tryRespondCancelled(req, res) || !isResponseWritable(res)) {
+        return;
       }
 
+      applyTileCacheHeaders(res, eTag);
       res.json(payload);
-    } catch (error) {
-      next(error);
-    }
-  })();
+    })
+    .catch((error) => {
+      next(error as Error);
+    });
 }
 
 export default {
   getCitySummary,
   getPois,
   getPoiClusters,
+  getCityTile,
   getPoiTile,
 };
 
-function loadGeoCollection(filePath: string, fallbackName: string): GeoCollection {
+function loadGeoCollection(
+  filePath: string,
+  fallbackName: string
+): GeoCollection {
   try {
-    const raw = fs.readFileSync(filePath, 'utf-8');
+    const raw = fs.readFileSync(filePath, "utf-8");
     const parsed = JSON.parse(raw) as GeoCollection;
-    if (parsed.type === 'FeatureCollection' && Array.isArray(parsed.features)) {
+    if (parsed.type === "FeatureCollection" && Array.isArray(parsed.features)) {
       return parsed;
     }
   } catch {
@@ -336,24 +492,32 @@ function loadGeoCollection(filePath: string, fallbackName: string): GeoCollectio
   }
 
   return {
-    type: 'FeatureCollection',
+    type: "FeatureCollection",
     name: fallbackName,
     features: [],
   };
 }
 
-function createDatasetInfo(filePath: string, collection: GeoCollection): PoiDatasetInfo {
+function createDatasetInfo(
+  filePath: string,
+  collection: GeoCollection
+): PoiDatasetInfo {
   const stat = fs.existsSync(filePath) ? fs.statSync(filePath) : undefined;
   return {
     absolutePath: filePath,
-    relativePath: path.relative(GEO_DATA_DIR, filePath) || path.basename(filePath),
-    type: filePath.endsWith('.geojsonl') ? 'geojsonl' : 'geojson',
+    relativePath:
+      path.relative(GEO_DATA_DIR, filePath) || path.basename(filePath),
+    type: filePath.endsWith(".geojsonl") ? "geojsonl" : "geojson",
     lastModified: stat?.mtimeMs ?? Date.now(),
     featureCount: collection.features.length,
   };
 }
 
-function tileToBbox(z: number, x: number, y: number): [number, number, number, number] {
+function tileToBbox(
+  z: number,
+  x: number,
+  y: number
+): [number, number, number, number] {
   const minLon = tileXToLon(x, z);
   const maxLon = tileXToLon(x + 1, z);
   const maxLat = tileYToLat(y, z);
@@ -368,4 +532,150 @@ function tileXToLon(x: number, z: number): number {
 function tileYToLat(y: number, z: number): number {
   const n = Math.PI - (2 * Math.PI * y) / Math.pow(2, z);
   return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+}
+
+class TileJobRegistry<TPayload> {
+  private readonly jobs = new Map<string, Promise<TPayload>>();
+
+  run(key: string, factory: () => Promise<TPayload>): Promise<TPayload> {
+    const existing = this.jobs.get(key);
+    if (existing) {
+      return existing;
+    }
+
+    const jobPromise = factory()
+      .then((result) => {
+        this.jobs.delete(key);
+        return result;
+      })
+      .catch((error) => {
+        this.jobs.delete(key);
+        throw error;
+      });
+
+    this.jobs.set(key, jobPromise);
+    return jobPromise;
+  }
+}
+
+const cityTileJobs = new TileJobRegistry<CityTileCachePayload>();
+const poiTileJobs = new TileJobRegistry<PoiTileCachePayload>();
+
+function tryRespondCancelled(req: Request, res: Response): boolean {
+  if (!isResponseWritable(res)) {
+    return true;
+  }
+
+  if (isRequestCancelled(req)) {
+    res.status(204).set("Cache-Control", "no-store").end();
+    return true;
+  }
+
+  return false;
+}
+
+function tryRespondNotModified(
+  req: Request,
+  res: Response,
+  eTag: string
+): boolean {
+  if (!isResponseWritable(res)) {
+    return true;
+  }
+
+  const ifNoneMatchHeader = req.headers["if-none-match"];
+  if (!ifNoneMatchHeader) {
+    return false;
+  }
+
+  const headerValues = Array.isArray(ifNoneMatchHeader)
+    ? ifNoneMatchHeader
+    : [ifNoneMatchHeader];
+  const matchValues = headerValues
+    .flatMap((value) => (value ?? "").split(","))
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (matchValues.includes("*") || matchValues.includes(eTag)) {
+    applyTileCacheHeaders(res, eTag);
+    res.status(304).end();
+    return true;
+  }
+
+  return false;
+}
+
+function isRequestCancelled(req: Request): boolean {
+  const state = ensureRequestCancellationTracking(req);
+  return state.isCancelled();
+}
+
+function isResponseWritable(res: Response): boolean {
+  if (res.headersSent || res.writableEnded) {
+    return false;
+  }
+
+  if ("socket" in res && res.socket?.destroyed === true) {
+    return false;
+  }
+
+  return true;
+}
+
+function buildTileEtag(
+  prefix: string,
+  tile: { z: number; x: number; y: number },
+  datasetInfo: PoiDatasetInfo
+): string {
+  const safePath = datasetInfo.relativePath.replace(/[^a-zA-Z0-9_-]/g, "-");
+  const lastModified = Math.round(datasetInfo.lastModified);
+  return `W/"${prefix}-${safePath}-${lastModified}-${datasetInfo.featureCount}-${tile.z}-${tile.x}-${tile.y}"`;
+}
+
+const REQUEST_CANCEL_STATE = Symbol("requestCancelState");
+
+interface RequestCancelState {
+  isCancelled: () => boolean;
+}
+
+function ensureRequestCancellationTracking(req: Request): RequestCancelState {
+  const existing = (req as Record<symbol, unknown>)[REQUEST_CANCEL_STATE] as
+    | RequestCancelState
+    | undefined;
+  if (existing) {
+    return existing;
+  }
+
+  let cancelled = false;
+  const markCancelled = () => {
+    cancelled = true;
+  };
+
+  req.once("aborted", markCancelled);
+  req.once("close", markCancelled);
+  if (req.socket) {
+    req.socket.once("close", markCancelled);
+  }
+
+  const state: RequestCancelState = {
+    isCancelled: () =>
+      cancelled || req.destroyed || req.socket?.destroyed === true,
+  };
+
+  Object.defineProperty(req, REQUEST_CANCEL_STATE, {
+    value: state,
+    enumerable: false,
+    configurable: false,
+    writable: false,
+  });
+
+  return state;
+}
+
+function applyTileCacheHeaders(res: Response, eTag: string): void {
+  res.set({
+    "Cache-Control": "public, max-age=0, must-revalidate",
+    ETag: eTag,
+    Vary: "Accept-Encoding",
+  });
 }

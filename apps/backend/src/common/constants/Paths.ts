@@ -11,6 +11,7 @@ export default {
   Geo: {
     Base: '/geo',
     Cities: '/cities',
+    CitiesTile: '/cities-tile/:z/:x/:y',
     Pois: '/pois',
     PoiClusters: '/pois/clusters',
     PoiTile: '/pois-tile/:z/:x/:y',

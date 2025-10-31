@@ -62,7 +62,9 @@ Check for typescript errors.
 
 ## Geo Data APIs
 
-- `/api/geo/pois` and `/api/geo/pois/clusters` now prioritise `thailand-cities.geojsonl` (then `thailand-cities.geojson`) in `apps/backend/src/data`; clusters fall back to `thailand-cities-point.geojson`.
+- `/api/geo/cities` continues to serve the full city summary, and `/api/geo/cities-tile/:z/:x/:y` now streams tile-sized subsets with automatic caching under `apps/backend/src/data/tiles/cities/{z}/{x}/{y}.json`.
+- Example request: `curl --request GET --url http://localhost:4000/api/geo/cities-tile/8/200/117 --header 'Accept: application/json'`
+- `/api/geo/pois` and `/api/geo/pois/clusters` prioritise `thailand-cities.geojsonl` (then `thailand-cities.geojson`) in `apps/backend/src/data`; clusters fall back to `thailand-cities-point.geojson`.
 - `/api/geo/pois-tile/:z/:x/:y` returns features intersecting a Web Mercator tile and persists the response to `apps/backend/src/data/tiles/pois/{z}/{x}/{y}.json`. Cached tiles are automatically regenerated when the source dataset changes.
 - You can regenerate synthetic POIs with `pnpm tsx scripts/generate-th-pois.ts --out apps/backend/src/data/thailand-cities.geojsonl --format jsonl` (see script header for all options).
 

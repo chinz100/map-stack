@@ -19,8 +19,6 @@ export interface PoiDataset {
 export const GEO_DATA_DIR = path.join(__dirname, '..', 'data');
 
 const CANDIDATE_FILES = [
-  'thailand-cities.geojsonl',
-  'thailand-cities.geojson',
   'thailand-cities-point.geojson',
 ] as const;
 
