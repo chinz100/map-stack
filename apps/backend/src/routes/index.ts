@@ -25,6 +25,7 @@ const geoRouter = Router();
 geoRouter.get(Paths.Geo.Cities, GeoRoutes.getCitySummary);
 geoRouter.get(Paths.Geo.Pois, GeoRoutes.getPois);
 geoRouter.get(Paths.Geo.PoiClusters, GeoRoutes.getPoiClusters);
+geoRouter.get(Paths.Geo.PoiTile, GeoRoutes.getPoiTile);
 apiRouter.use(Paths.Geo.Base, geoRouter);
 
 

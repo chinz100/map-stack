@@ -13,5 +13,6 @@ export default {
     Cities: '/cities',
     Pois: '/pois',
     PoiClusters: '/pois/clusters',
+    PoiTile: '/pois-tile/:z/:x/:y',
   },
 } as const;

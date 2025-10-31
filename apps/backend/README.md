@@ -60,6 +60,13 @@ Run the production build (Must be built first).
 Check for typescript errors.
 
 
+## Geo Data APIs
+
+- `/api/geo/pois` and `/api/geo/pois/clusters` now prioritise `thailand-cities.geojsonl` (then `thailand-cities.geojson`) in `apps/backend/src/data`; clusters fall back to `thailand-cities-point.geojson`.
+- `/api/geo/pois-tile/:z/:x/:y` returns features intersecting a Web Mercator tile and persists the response to `apps/backend/src/data/tiles/pois/{z}/{x}/{y}.json`. Cached tiles are automatically regenerated when the source dataset changes.
+- You can regenerate synthetic POIs with `pnpm tsx scripts/generate-th-pois.ts --out apps/backend/src/data/thailand-cities.geojsonl --format jsonl` (see script header for all options).
+
+
 ## Additional Notes
 
 - If `npm run dev` gives you issues with bcrypt on MacOS you may need to run: `npm rebuild bcrypt --build-from-source`. 

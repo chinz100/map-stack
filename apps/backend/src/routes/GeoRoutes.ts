@@ -1,33 +1,28 @@
-import fs from 'fs';
-import path from 'path';
-import { Request, Response } from 'express';
+import fs from 'node:fs';
+import path from 'node:path';
+import { NextFunction, Request, Response } from 'express';
 
-type LonLat = [number, number];
+import {
+  GEO_DATA_DIR,
+  PoiDataset,
+  PoiDatasetInfo,
+  getPoiDataset,
+} from '@src/services/PoiDatasetService';
+import {
+  PoiTileCachePayload,
+  getPoiTileCachePath,
+  readPoiTileFromCache,
+  writePoiTileToCache,
+} from '@src/services/PoiTileCache';
+import { GeoCollection, GeoFeature, LonLat } from '@src/types/geo';
 
-interface GeoFeature {
-  type: 'Feature';
-  properties: Record<string, unknown>;
-  geometry: {
-    type: 'Point';
-    coordinates: LonLat;
-  };
-}
+const cityDataPath = path.join(GEO_DATA_DIR, 'thailand-cities-point.geojson');
+const cityCollection = loadGeoCollection(cityDataPath, 'thailand_city_summary');
 
-interface GeoCollection {
-  type: 'FeatureCollection';
-  name?: string;
-  features: GeoFeature[];
-}
-
-const dataDir = path.join(__dirname, '..', 'data');
-
-const cityCollection: GeoCollection = JSON.parse(
-  fs.readFileSync(path.join(dataDir, 'thailand-cities-point.geojson'), 'utf-8'),
-);
-
-const poiCollection: GeoCollection = JSON.parse(
-  fs.readFileSync(path.join(dataDir, 'thailand-cities.geojson'), 'utf-8'),
-);
+const poiDataset: PoiDataset | null = getPoiDataset();
+const poiCollection: GeoCollection = poiDataset?.collection ?? cityCollection;
+const poiDatasetInfo: PoiDatasetInfo =
+  poiDataset?.info ?? createDatasetInfo(cityDataPath, poiCollection);
 
 function parseBbox(
   bboxRaw: string | string[] | undefined,
@@ -262,8 +257,115 @@ export function getPoiClusters(req: Request, res: Response): void {
   });
 }
 
+export function getPoiTile(req: Request, res: Response, next: NextFunction): void {
+  const z = Number(req.params.z);
+  const x = Number(req.params.x);
+  const y = Number(req.params.y);
+
+  if (![z, x, y].every(Number.isInteger)) {
+    res.status(400).json({ error: 'Tile coordinates must be integers' });
+    return;
+  }
+
+  if (z < 0 || z > 22) {
+    res.status(400).json({ error: 'Tile zoom must be between 0 and 22' });
+    return;
+  }
+
+  const tileExtent = Math.pow(2, z);
+  if (x < 0 || x >= tileExtent || y < 0 || y >= tileExtent) {
+    res.status(400).json({ error: 'Tile coordinates are out of range for the given zoom' });
+    return;
+  }
+
+  const bbox = tileToBbox(z, x, y);
+  const cachePath = getPoiTileCachePath(z, x, y);
+  const cacheKey = `${z}/${x}/${y}`;
+
+  void (async () => {
+    try {
+      let payload: PoiTileCachePayload | null = await readPoiTileFromCache(cachePath, poiDatasetInfo);
+
+      if (!payload) {
+        const features = filterByBbox(poiCollection.features, bbox);
+        payload = {
+          type: 'FeatureCollection',
+          tile: { z, x, y },
+          bbox,
+          count: features.length,
+          dataset: {
+            relativePath: poiDatasetInfo.relativePath,
+            type: poiDatasetInfo.type,
+            lastModified: poiDatasetInfo.lastModified,
+            totalFeatures: poiDatasetInfo.featureCount,
+          },
+          cache: {
+            key: cacheKey,
+            generatedAt: new Date().toISOString(),
+            hit: false,
+          },
+          features,
+        };
+
+        await writePoiTileToCache(cachePath, payload);
+      }
+
+      res.json(payload);
+    } catch (error) {
+      next(error);
+    }
+  })();
+}
+
 export default {
   getCitySummary,
   getPois,
   getPoiClusters,
+  getPoiTile,
 };
+
+function loadGeoCollection(filePath: string, fallbackName: string): GeoCollection {
+  try {
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    const parsed = JSON.parse(raw) as GeoCollection;
+    if (parsed.type === 'FeatureCollection' && Array.isArray(parsed.features)) {
+      return parsed;
+    }
+  } catch {
+    // fall through to fallback
+  }
+
+  return {
+    type: 'FeatureCollection',
+    name: fallbackName,
+    features: [],
+  };
+}
+
+function createDatasetInfo(filePath: string, collection: GeoCollection): PoiDatasetInfo {
+  const stat = fs.existsSync(filePath) ? fs.statSync(filePath) : undefined;
+  return {
+    absolutePath: filePath,
+    relativePath: path.relative(GEO_DATA_DIR, filePath) || path.basename(filePath),
+    type: filePath.endsWith('.geojsonl') ? 'geojsonl' : 'geojson',
+    lastModified: stat?.mtimeMs ?? Date.now(),
+    featureCount: collection.features.length,
+  };
+}
+
+function tileToBbox(z: number, x: number, y: number): [number, number, number, number] {
+  const minLon = tileXToLon(x, z);
+  const maxLon = tileXToLon(x + 1, z);
+  const maxLat = tileYToLat(y, z);
+  const minLat = tileYToLat(y + 1, z);
+  return [minLon, minLat, maxLon, maxLat];
+}
+
+function tileXToLon(x: number, z: number): number {
+  return (x / Math.pow(2, z)) * 360 - 180;
+}
+
+function tileYToLat(y: number, z: number): number {
+  const n = Math.PI - (2 * Math.PI * y) / Math.pow(2, z);
+  return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+}
